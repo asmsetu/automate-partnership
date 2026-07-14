@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Setu — API Price Checker</title>
+<style>
+:root {
+  --bg:#0d1117; --bg2:#161b22; --bg3:#21262d; --bg4:#0d1421;
+  --text:#e6edf3; --muted:#8b949e; --border:#30363d;
+  --green:#2ea043; --green-bg:#0a2e14; --green-text:#3fb950;
+  --yellow:#d29922; --yellow-bg:#2d1f00; --yellow-text:#e3b341;
+  --red:#da3633; --red-bg:#2d0f0f; --red-text:#f85149;
+  --blue:#1f6feb; --blue-text:#79c0ff;
+  --accent:#238636; --r:10px; --rl:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+
+/* NAV */
+.nav{display:flex;align-items:center;gap:12px;padding:14px 28px;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.nav-logo{width:32px;height:32px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0}
+.nav-title{font-size:15px;font-weight:600}
+.nav-sub{font-size:12px;color:var(--muted)}
+.nav-divider{width:1px;height:20px;background:var(--border);margin:0 4px}
+
+/* LAYOUT */
+.page{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px 60px}
+.card{width:100%;max-width:580px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:32px;display:flex;flex-direction:column;gap:24px}
+
+.card-title{font-size:18px;font-weight:700;margin-bottom:2px}
+.card-sub{font-size:13px;color:var(--muted);line-height:1.5}
+
+/* FORM */
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.field input, .field select{
+  padding:11px 14px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:var(--r);color:var(--text);font-size:14px;outline:none;
+  transition:border-color .15s;width:100%
+}
+.field input:focus,.field select:focus{border-color:var(--blue)}
+.field input::placeholder{color:var(--muted)}
+
+/* API selector */
+.api-search-wrap{position:relative}
+.api-search-wrap input{padding-right:36px}
+.api-search-wrap .clear-btn{
+  position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;
+  line-height:1;padding:2px;display:none
+}
+.api-search-wrap .clear-btn.show{display:block}
+
+.dropdown{
+  position:absolute;top:calc(100% + 4px);left:0;right:0;
+  background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);
+  max-height:320px;overflow-y:auto;z-index:100;display:none;
+  box-shadow:0 8px 24px rgba(0,0,0,.4)
+}
+.dropdown.open{display:block}
+.dd-group-label{
+  padding:8px 12px 4px;font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+  border-bottom:1px solid var(--border);position:sticky;top:0;
+  background:var(--bg3)
+}
+.dd-item{
+  padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);
+  transition:background .1s
+}
+.dd-item:last-child{border-bottom:none}
+.dd-item:hover,.dd-item.focused{background:var(--bg2)}
+.dd-item-name{font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px}
+.dd-item-desc{font-size:11px;color:var(--muted);line-height:1.4}
+.dd-item-cat{
+  display:inline-block;font-size:10px;padding:1px 6px;border-radius:20px;
+  background:var(--bg);color:var(--blue-text);border:1px solid var(--border);
+  margin-bottom:3px
+}
+.dd-empty{padding:16px;font-size:13px;color:var(--muted);text-align:center}
+
+/* Selected API display */
+.api-selected{
+  background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);
+  padding:12px 14px;display:none;cursor:pointer
+}
+.api-selected.show{display:block}
+.api-selected-name{font-size:14px;font-weight:600;margin-bottom:3px}
+.api-selected-desc{font-size:12px;color:var(--muted);line-height:1.4}
+.api-selected-change{font-size:11px;color:var(--blue-text);margin-top:6px;display:inline-block}
+
+/* Price input with ₹ */
+.price-wrap{position:relative}
+.price-wrap .rupee{
+  position:absolute;left:14px;top:50%;transform:translateY(-50%);
+  font-size:15px;color:var(--muted);pointer-events:none
+}
+.price-wrap input{padding-left:28px}
+
+/* Submit btn */
+.submit-btn{
+  padding:13px;background:var(--accent);border:none;border-radius:var(--r);
+  color:#fff;font-size:14px;font-weight:700;cursor:pointer;
+  transition:opacity .15s;letter-spacing:.02em
+}
+.submit-btn:hover{opacity:.88}
+.submit-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* Loading spinner inside button */
+.btn-inner{display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none}
+.btn-spinner.show{display:block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── RESULT CARD ── */
+.result{border-radius:var(--rl);overflow:hidden;display:none;animation:fadeIn .25s ease}
+.result.show{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.result-header{padding:18px 22px 16px;display:flex;align-items:flex-start;gap:14px}
+.result-icon{font-size:28px;flex-shrink:0;margin-top:2px}
+.result-status{font-size:16px;font-weight:700;margin-bottom:4px}
+.result-guidance{font-size:13px;line-height:1.65}
+
+/* Status variants */
+.result.good    .result-header{background:var(--green-bg);border:1px solid var(--green)}
+.result.low     .result-header{background:var(--yellow-bg);border:1px solid var(--yellow)}
+.result.bad     .result-header{background:var(--red-bg);border:1px solid var(--red)}
+.result.nodata  .result-header{background:var(--bg3);border:1px solid var(--border)}
+
+.result.good    .result-status{color:var(--green-text)}
+.result.low     .result-status{color:var(--yellow-text)}
+.result.bad     .result-status{color:var(--red-text)}
+.result.nodata  .result-status{color:var(--muted)}
+
+/* Result body */
+.result-body{
+  border:1px solid var(--border);border-top:none;
+  border-radius:0 0 var(--rl) var(--rl);background:var(--bg2);
+  padding:16px 22px;display:flex;flex-direction:column;gap:10px
+}
+.result-row{display:flex;justify-content:space-between;align-items:center;font-size:13px}
+.result-row .rl{color:var(--muted)}
+.result-row .rv{font-weight:600;color:var(--text)}
+
+.vendor-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.vendor-chip{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:12px;padding:4px 10px;border-radius:20px;
+  background:var(--green-bg);color:var(--green-text);
+  border:1px solid var(--green)
+}
+.vendor-chip-warn{
+  background:var(--yellow-bg);color:var(--yellow-text);border-color:var(--yellow)
+}
+
+.divider{height:1px;background:var(--border);margin:4px 0}
+
+/* Market avg banner */
+.market-banner{
+  background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);
+  padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:12px
+}
+.market-banner .mb-label{color:var(--muted)}
+.market-banner .mb-val{font-size:15px;font-weight:700;color:var(--blue-text);margin-left:auto}
+
+/* Reset btn */
+.reset-btn{
+  padding:10px;background:none;border:1px solid var(--border);border-radius:var(--r);
+  color:var(--muted);font-size:13px;cursor:pointer;transition:all .15s;margin-top:4px
+}
+.reset-btn:hover{border-color:var(--blue-text);color:var(--blue-text)}
+
+/* Loading state */
+.loading-state{text-align:center;padding:60px 24px;color:var(--muted)}
+.loading-state .spinner{width:36px;height:36px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+.loading-state p{font-size:13px}
+
+/* Error state */
+.error-banner{
+  background:var(--red-bg);border:1px solid var(--red);border-radius:var(--r);
+  padding:12px 16px;font-size:13px;color:var(--red-text);line-height:1.5;display:none
+}
+.error-banner.show{display:block}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo">S</div>
+  <div>
+    <div class="nav-title">API Price Checker</div>
+    <div class="nav-sub">Setu Supply Partnership</div>
+  </div>
+  <div class="nav-divider"></div>
+  <div style="font-size:12px;color:var(--muted)">For internal sales use only</div>
+</nav>
+
+<div class="page">
+
+  <!-- Loading state while APIs fetch -->
+  <div class="loading-state" id="loadingState">
+    <div class="spinner"></div>
+    <p>Loading API catalogue…</p>
+  </div>
+
+  <!-- Main form (hidden until APIs load) -->
+  <div class="card" id="mainCard" style="display:none">
+    <div>
+      <div class="card-title">Check Your Price</div>
+      <div class="card-sub">Enter the price you want to quote to a customer. We'll tell you if it works — without showing you the vendor cost.</div>
+    </div>
+
+    <!-- Sales person name -->
+    <div class="field">
+      <label>Your Name</label>
+      <input type="text" id="salesName" placeholder="e.g. Priya Sharma">
+    </div>
+
+    <!-- Customer name -->
+    <div class="field">
+      <label>Customer / Company Name</label>
+      <input type="text" id="customerName" placeholder="e.g. HDFC Bank">
+    </div>
+
+    <!-- API selector -->
+    <div class="field">
+      <label>API</label>
+      <div style="position:relative">
+        <!-- Search input (shown when no API selected) -->
+        <div class="api-search-wrap" id="apiSearchWrap">
+          <input type="text" id="apiSearch" placeholder="Search by API name, category, or description…" autocomplete="off">
+          <button class="clear-btn" id="apiClearBtn" onclick="clearApiSearch()">×</button>
+          <div class="dropdown" id="apiDropdown"></div>
+        </div>
+        <!-- Selected API display (shown after selection) -->
+        <div class="api-selected" id="apiSelected" onclick="resetApiSelection()">
+          <div class="api-selected-name" id="apiSelectedName"></div>
+          <div class="api-selected-desc" id="apiSelectedDesc"></div>
+          <span class="api-selected-change">← Change API</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Price input -->
+    <div class="field">
+      <label>Price You Want to Quote (₹ per API call)</label>
+      <div class="price-wrap">
+        <span class="rupee">₹</span>
+        <input type="number" id="priceInput" placeholder="0.00" step="0.01" min="0">
+      </div>
+    </div>
+
+    <!-- Error banner -->
+    <div class="error-banner" id="errorBanner"></div>
+
+    <!-- Submit -->
+    <button class="submit-btn" id="submitBtn" onclick="submitPrice()">
+      <div class="btn-inner">
+        <div class="btn-spinner" id="btnSpinner"></div>
+        <span id="btnText">Check Price</span>
+      </div>
+    </button>
+
+    <!-- Result -->
+    <div class="result" id="resultCard">
+      <div class="result-header">
+        <div class="result-icon" id="resultIcon"></div>
+        <div>
+          <div class="result-status" id="resultStatus"></div>
+          <div class="result-guidance" id="resultGuidance"></div>
+        </div>
+      </div>
+      <div class="result-body">
+        <div class="result-row">
+          <span class="rl">API</span>
+          <span class="rv" id="rApiName"></span>
+        </div>
+        <div class="result-row">
+          <span class="rl">Your quoted price</span>
+          <span class="rv" id="rPrice"></span>
+        </div>
+        <div id="rVendorRow">
+          <div class="divider"></div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px" id="rVendorLabel"></div>
+          <div class="vendor-chips" id="rVendors"></div>
+        </div>
+        <div id="rMarketRow" style="display:none">
+          <div class="divider"></div>
+          <div class="market-banner">
+            <div>
+              <div class="mb-label">Market average price for this API</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Based on all quotes submitted via this tool</div>
+            </div>
+            <div class="mb-val" id="rMarketAvg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reset -->
+    <button class="reset-btn" id="resetBtn" style="display:none" onclick="resetForm()">
+      ← Check another price
+    </button>
+  </div>
+</div>
+
+<script>
+// ── CONFIG — paste your Apps Script Web App URL here ─────────
+const SCRIPT_URL = "YOUR_APPS_SCRIPT_URL_HERE";
+// ─────────────────────────────────────────────────────────────
+
+let allApis = [];       // full list from backend
+let selectedApi = null; // currently selected API object
+let focusedIdx  = -1;   // keyboard nav index in dropdown
+
+// ── Load API list on page open ────────────────────────────────
+async function loadApis() {
+  try {
+    const res  = await fetch(SCRIPT_URL + "?action=getApis");
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    allApis = data.apis || [];
+    document.getElementById("loadingState").style.display = "none";
+    document.getElementById("mainCard").style.display     = "flex";
+    renderDropdown("");
+  } catch(e) {
+    document.getElementById("loadingState").innerHTML =
+      `<div style="color:var(--red-text);font-size:14px">
+        ⚠️ Could not load API list.<br>
+        <span style="font-size:12px;color:var(--muted)">Check that your SCRIPT_URL is set correctly in index.html</span>
+       </div>`;
+  }
+}
+
+// ── Dropdown rendering ────────────────────────────────────────
+function renderDropdown(query) {
+  const q   = query.toLowerCase().trim();
+  const dd  = document.getElementById("apiDropdown");
+  focusedIdx = -1;
+
+  // Filter
+  const filtered = q
+    ? allApis.filter(a =>
+        a.apiName.toLowerCase().includes(q) ||
+        (a.category||"").toLowerCase().includes(q) ||
+        (a.description||"").toLowerCase().includes(q) ||
+        (a.internal||"").toLowerCase().includes(q)
+      )
+    : allApis;
+
+  if (!filtered.length) {
+    dd.innerHTML = `<div class="dd-empty">No APIs match "${query}"</div>`;
+    dd.classList.add("open");
+    return;
+  }
+
+  // Group by category
+  const groups = {};
+  filtered.forEach(a => {
+    const cat = a.category || "General";
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(a);
+  });
+
+  let html = "";
+  let globalIdx = 0;
+  Object.keys(groups).sort().forEach(cat => {
+    html += `<div class="dd-group-label">${cat}</div>`;
+    groups[cat].forEach(api => {
+      html += `<div class="dd-item" data-idx="${globalIdx}" onclick="selectApi(${globalIdx}, this)">
+        <div class="dd-item-name">${highlight(api.apiName, q)}</div>
+        ${api.description ? `<div class="dd-item-desc">${highlight(api.description, q)}</div>` : ''}
+      </div>`;
+      globalIdx++;
+    });
+  });
+
+  // Store filtered list in order for keyboard nav
+  dd._filtered = filtered;
+  dd.innerHTML  = html;
+  dd.classList.add("open");
+}
+
+function highlight(text, q) {
+  if (!q) return text;
+  const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, "gi");
+  return text.replace(re, '<strong style="color:var(--text)">$1</strong>');
+}
+
+// ── API selection ─────────────────────────────────────────────
+function selectApi(idx, el) {
+  const dd = document.getElementById("apiDropdown");
+  const api = dd._filtered ? dd._filtered[idx] : allApis[idx];
+  if (!api) return;
+
+  selectedApi = api;
+
+  // Show selected display, hide search
+  document.getElementById("apiSearchWrap").style.display = "none";
+  const sel = document.getElementById("apiSelected");
+  sel.classList.add("show");
+  document.getElementById("apiSelectedName").textContent = api.apiName;
+  document.getElementById("apiSelectedDesc").textContent = api.description || "";
+
+  dd.classList.remove("open");
+  clearError();
+}
+
+function resetApiSelection() {
+  selectedApi = null;
+  document.getElementById("apiSearchWrap").style.display = "block";
+  document.getElementById("apiSelected").classList.remove("show");
+  document.getElementById("apiSearch").value = "";
+  document.getElementById("apiClearBtn").classList.remove("show");
+  document.getElementById("apiDropdown").classList.remove("open");
+  document.getElementById("apiSearch").focus();
+}
+
+function clearApiSearch() {
+  document.getElementById("apiSearch").value = "";
+  document.getElementById("apiClearBtn").classList.remove("show");
+  renderDropdown("");
+  document.getElementById("apiSearch").focus();
+}
+
+// ── Search input events ───────────────────────────────────────
+document.getElementById("apiSearch").addEventListener("input", function() {
+  document.getElementById("apiClearBtn").classList.toggle("show", this.value.length > 0);
+  renderDropdown(this.value);
+});
+
+document.getElementById("apiSearch").addEventListener("focus", function() {
+  renderDropdown(this.value);
+});
+
+// Keyboard navigation in dropdown
+document.getElementById("apiSearch").addEventListener("keydown", function(e) {
+  const dd    = document.getElementById("apiDropdown");
+  const items = dd.querySelectorAll(".dd-item");
+  if (!items.length) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    focusedIdx = Math.min(focusedIdx + 1, items.length - 1);
+    items.forEach((el,i) => el.classList.toggle("focused", i === focusedIdx));
+    items[focusedIdx]?.scrollIntoView({block:"nearest"});
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    focusedIdx = Math.max(focusedIdx - 1, 0);
+    items.forEach((el,i) => el.classList.toggle("focused", i === focusedIdx));
+    items[focusedIdx]?.scrollIntoView({block:"nearest"});
+  } else if (e.key === "Enter" && focusedIdx >= 0) {
+    e.preventDefault();
+    items[focusedIdx].click();
+  } else if (e.key === "Escape") {
+    dd.classList.remove("open");
+  }
+});
+
+// Close dropdown on outside click
+document.addEventListener("click", function(e) {
+  if (!e.target.closest("#apiSearchWrap")) {
+    document.getElementById("apiDropdown").classList.remove("open");
+  }
+});
+
+// ── Submit price ──────────────────────────────────────────────
+async function submitPrice() {
+  clearError();
+
+  const salesName    = document.getElementById("salesName").value.trim();
+  const customerName = document.getElementById("customerName").value.trim();
+  const priceRaw     = document.getElementById("priceInput").value.trim();
+  const price        = parseFloat(priceRaw);
+
+  // Validation
+  if (!salesName)     { showError("Please enter your name."); return; }
+  if (!customerName)  { showError("Please enter the customer / company name."); return; }
+  if (!selectedApi)   { showError("Please select an API from the dropdown."); return; }
+  if (!priceRaw || isNaN(price) || price <= 0) { showError("Please enter a valid price greater than 0."); return; }
+
+  // Loading state
+  setLoading(true);
+
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method  : "POST",
+      headers : { "Content-Type": "application/json" },
+      body    : JSON.stringify({
+        action       : "checkPrice",
+        apiName      : selectedApi.apiName,
+        price        : price,
+        salesName    : salesName,
+        customerName : customerName,
+      }),
+    });
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    showResult(data);
+
+  } catch(err) {
+    showError("Something went wrong: " + err.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ── Show result ───────────────────────────────────────────────
+function showResult(data) {
+  const card = document.getElementById("resultCard");
+
+  // Status config
+  const config = {
+    GOOD_TO_GO : { cls:"good",   icon:"✅", label:"Good to Go"         },
+    LOW_MARGIN : { cls:"low",    icon:"⚠️",  label:"Margin Too Low"     },
+    BELOW_COST : { cls:"bad",    icon:"🚫", label:"Below Vendor Cost"  },
+    NO_VENDOR  : { cls:"nodata", icon:"ℹ️",  label:"No Vendor Data Yet" },
+  }[data.status] || { cls:"nodata", icon:"ℹ️", label:"Unknown" };
+
+  card.className = "result show " + config.cls;
+  document.getElementById("resultIcon").textContent    = config.icon;
+  document.getElementById("resultStatus").textContent  = config.label;
+  document.getElementById("resultGuidance").textContent = data.guidance;
+  document.getElementById("rApiName").textContent      = data.apiName;
+  document.getElementById("rPrice").textContent        = "₹" + parseFloat(data.submittedPrice).toFixed(2) + " per call";
+
+  // Vendor chips
+  const vRow    = document.getElementById("rVendorRow");
+  const vLabel  = document.getElementById("rVendorLabel");
+  const vChips  = document.getElementById("rVendors");
+
+  if (data.vendorInfo && data.status === "GOOD_TO_GO" && data.vendorInfo.vendors?.length) {
+    vRow.style.display = "block";
+    vLabel.textContent = "Vendors that can support at this price:";
+    vChips.innerHTML   = data.vendorInfo.vendors.map(v =>
+      `<span class="vendor-chip">✓ ${v}</span>`
+    ).join("");
+  } else if (data.vendorInfo && data.status === "LOW_MARGIN" && data.vendorInfo.vendor) {
+    vRow.style.display = "block";
+    vLabel.textContent = "Closest vendor available:";
+    vChips.innerHTML   = `<span class="vendor-chip vendor-chip-warn">⚠ ${data.vendorInfo.vendor}</span>`;
+  } else {
+    vRow.style.display = "none";
+  }
+
+  // Market average
+  const mRow = document.getElementById("rMarketRow");
+  if (data.marketAvg !== null && data.marketAvg !== undefined) {
+    mRow.style.display = "block";
+    document.getElementById("rMarketAvg").textContent = "₹" + parseFloat(data.marketAvg).toFixed(2);
+  } else {
+    mRow.style.display = "none";
+  }
+
+  // Show reset button, hide submit
+  document.getElementById("submitBtn").style.display = "none";
+  document.getElementById("resetBtn").style.display  = "block";
+
+  // Scroll to result
+  card.scrollIntoView({ behavior:"smooth", block:"nearest" });
+}
+
+// ── Reset form ────────────────────────────────────────────────
+function resetForm() {
+  document.getElementById("customerName").value = "";
+  document.getElementById("priceInput").value   = "";
+  resetApiSelection();
+  document.getElementById("resultCard").className = "result";
+  document.getElementById("submitBtn").style.display = "block";
+  document.getElementById("resetBtn").style.display  = "none";
+  clearError();
+  window.scrollTo({ top:0, behavior:"smooth" });
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function setLoading(on) {
+  document.getElementById("btnSpinner").classList.toggle("show", on);
+  document.getElementById("btnText").textContent  = on ? "Checking…" : "Check Price";
+  document.getElementById("submitBtn").disabled   = on;
+}
+function showError(msg) {
+  const b = document.getElementById("errorBanner");
+  b.textContent = msg;
+  b.classList.add("show");
+}
+function clearError() {
+  document.getElementById("errorBanner").classList.remove("show");
+}
+
+// Boot
+loadApis();
+</script>
+</body>
+</html>
